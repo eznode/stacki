@@ -316,9 +316,28 @@ def getHostPartitionDevices(disk):
 
 	return devices
 
+def getUUID(dev):
+	"""Returns uuid for /dev/sd<x><#>"""
+	uuid = ""
+	p = subprocess.Popen(['blkid', '-o', 'export', '%s' % dev],
+		stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+		stderr=subprocess.PIPE)
+	o = p.communicate()[0]
+	out = o.decode()
+	for l in out.split('\n'):
+		# Ignore empty lines
+		if not l.strip():
+			continue
+		elif l.startswith("UUID="):
+			uuid = l.split("=")[1]
+			break
+	return uuid
+
 
 def getHostMountpoint(host_fstab, uuid, label):
 	for part in host_fstab:
+		if '/dev/' in part['device']:
+			part['device'] = getUUID(part['device'])
 		if part['device'] == 'UUID=%s' % uuid:
 			return part['mountpoint']
 		elif part['device'] == 'LABEL=%s' % label:
