@@ -355,16 +355,12 @@ def getDiskPartNumber(disk):
 		stderr=subprocess.PIPE)
 	o = p.communicate()[0]
 	out = o.decode()
-
-	#
-	# the above should only return one line
-	#
-	arr = out.split('=')
-
-	if len(arr) == 2:
-		partnumber = arr[1].strip()
-
-	return partnumber
+	for line in out.splitlines():
+		if "PART_ENTRY_NUMBER" in line:
+			arr = line.split('=')
+			if len(arr) == 2:
+				partnumber = arr[1].strip()
+				return partnumber
 
 
 def getHostPartitions(host_disks, host_fstab):
