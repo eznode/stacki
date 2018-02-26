@@ -110,10 +110,11 @@ def outputPartition(p, initialize):
 			xml_partitions.append('\t\t\t\t<size>%dM</size>' %  p['size'])
 
 	if p['fstype']:
+		xml_partitions.append('\t\t\t\t<format config:type="boolean">%s</format>' % format)
 		if initialize == 'true':
 			xml_partitions.append('\t\t\t\t<filesystem config:type="symbol">%s</filesystem>' % p['fstype'])
-		xml_partitions.append('\t\t\t\t<format config:type="boolean">%s</format>' % format)
-		xml_partitions.append('\t\t\t\t<partition_nr config:type="integer">%s</partition_nr>' % p['partnumber'])
+		else:
+			xml_partitions.append('\t\t\t\t<partition_nr config:type="integer">%s</partition_nr>' % p['partnumber'])
 
 	#
 	# see if there is a label or 'asprimary' associated with this partition
