@@ -113,6 +113,7 @@ def outputPartition(p, initialize):
 		if initialize == 'true':
 			xml_partitions.append('\t\t\t\t<filesystem config:type="symbol">%s</filesystem>' % p['fstype'])
 		xml_partitions.append('\t\t\t\t<format config:type="boolean">%s</format>' % format)
+		xml_partitions.append('\t\t\t\t<partition_nr config:type="integer">%s</partition_nr>' % p['partnumber'])
 
 	#
 	# see if there is a label or 'asprimary' associated with this partition
@@ -219,7 +220,7 @@ def outputDisk(disk, initialize):
 	# only output XML configuration for this disk if there is partitioning
 	# configuration for this disk
 	#
-	if xml_partitions and initialize == 'true':
+	if xml_partitions:
 		if 'disklabel' in attributes:
 			disklabel = attributes['disklabel']
 		else:
@@ -237,19 +238,7 @@ def outputDisk(disk, initialize):
 		print('\t\t</partitions>')
 
 		print('\t</drive>')
-	elif xml_partitions and initialize == 'false':
-		if 'disklabel' in attributes:
-			disklabel = attributes['disklabel']
-		else:
-			disklabel = 'gpt'
-		print('\t<fstab>')
-		print('\t\t<use_existing_fstab config:type="boolean">true</use_existing_fstab>')
-		print('\t\t<partitions config:type="list">')
-		for p in xml_partitions:
-			print('%s' % p)
-		print('\t\t</partitions>')
-		print('\t</fstab>')
-
+	# elif xml_partitions and initialize == 'false':
 	return
 
 
@@ -562,10 +551,7 @@ elif 'nukedisks' in attributes:
 else:
 	nukedisks = 'false'
 
-if nukedisks == 'True':
-	print('<partitioning xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns" config:type="list">')
-else:
-	print('<partitioning_advanced xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns">')
+print('<partitioning xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns" config:type="list">')
 
 
 #
@@ -588,8 +574,4 @@ for disk in host_disks:
 		outputDisk(disk, initialize)	
 
 
-if nukedisks == 'True':
-	print('</partitioning>')
-else:
-	print('</partitioning_advanced>')
-print('')
+print('</partitioning>')
