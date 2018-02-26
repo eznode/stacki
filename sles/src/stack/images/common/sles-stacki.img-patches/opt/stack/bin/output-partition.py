@@ -318,7 +318,7 @@ def getHostPartitionDevices(disk):
 
 def getUUID(dev):
 	"""Returns uuid for /dev/sd<x><#>"""
-	uuid = ""
+	uuid = dev
 	p = subprocess.Popen(['blkid', '-o', 'export', '%s' % dev],
 		stdin=subprocess.PIPE, stdout=subprocess.PIPE,
 		stderr=subprocess.PIPE)
@@ -329,7 +329,7 @@ def getUUID(dev):
 		if not l.strip():
 			continue
 		elif l.startswith("UUID="):
-			uuid = l.split("=")[1]
+			uuid = l
 			break
 	return uuid
 
