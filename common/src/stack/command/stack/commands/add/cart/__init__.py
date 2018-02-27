@@ -96,6 +96,10 @@ class Command(stack.commands.CartArgumentProcessor,
 						])
 
 		carts = args
+
+		if filename != None and len(filename) > 0:
+			self.runImplementation('local_cart', filename)
+
 		if url == None and urlfile == None and filename == None:
 			if not len(carts):
 				raise ArgRequired(self, 'cart')
@@ -105,7 +109,7 @@ class Command(stack.commands.CartArgumentProcessor,
 					self.fixPerms(cart)
 		else:
 			print('network')
-			self.runImplementation('network_cart', (url,urlfile,service))
+			self.runImplementation('network_cart', (url,urlfile,dldir,service))
 #			self.fixPerms(cart)
 		
 

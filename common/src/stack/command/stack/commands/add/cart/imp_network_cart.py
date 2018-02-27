@@ -41,7 +41,7 @@ class Implementation(stack.commands.Implementation):
 			raise CommandError(self,msg)
 
 	def run(self, args):
-		url, urlfile, service, dldir = args
+		url, urlfile, dldir, service = args
 		urls = []
 		if urlfile != None:
 			with open(urlfile,'r') as f:
@@ -54,7 +54,7 @@ class Implementation(stack.commands.Implementation):
 		svcmd = self.getServiceCommand(service)
 
 		for url in urls:
-			cmd = svcmd + url + dldir
+			cmd = svcmd + url + " %s" % dldir
 			print(cmd)
 	
 	# get the cart

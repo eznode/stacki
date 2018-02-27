@@ -46,9 +46,13 @@ class Command(stack.commands.CartArgumentProcessor,
 	"""		
 		
 	def unpackCart(self, cart, cartfile, cartsdir):
+		cartbase = os.path.basename(cartfile).rsplit('.',1)[0]
+		dirbase = os.path.basename(cartsdir)
 		with tarfile.open(cartfile,'r:*') as tar:
 			if self.checkCart(cartfile) == True:
 				print("Unpacking....%s" % cart)
+				if cartbase != dirbase:
+					cartsdir = os.path.join(cartsdir,cartbase)
 				tar.extractall(cartsdir)
 			else:
 				print("That's no cart tarfile!")
