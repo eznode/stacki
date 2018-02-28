@@ -15,7 +15,9 @@ from stack.exception import ArgRequired, ArgUnique, CommandError
 class Command(stack.commands.CartArgumentProcessor,
 	stack.commands.add.command):
 	"""
-	Add a cart.
+	Add a cart. Files to download are concatenated
+	from "url," "urlfile," and "authfile" options
+	if any files are designated in the authfile.
 	
 	<arg type='string' name='cart' optional='1'>
 	The name of the cart to be created.
@@ -30,19 +32,37 @@ class Command(stack.commands.CartArgumentProcessor,
 	</param>
 
 	<param type='string' name='urlfile'>
-	Add multiple carts from a file with urls.
+	Add multiple carts from a text with urls.
 	</param>
 
 	<param type='string' name='downloaddir'>
 	Directory to download to. Defaults /tmp.
 	</param>
 
-	<param type='string' name='service'>
-	Github, www, artifactory, etc.
-	Artifactory is default for our corporate
-	overlords.
-	Can we do a straigt clone without src?
+	<param type='string' name='authfile'>
+	Json formatted authentication file.
+	Username/password. Yoy
+	supported.
 	</param>
+
+	<example cmd="add cart urlfile=/tmp/tdurls downloaddir=/export authfile=/root/carts.json">
+	Download the carts in /tmp/tdurls into /export.
+	Use the username/password in /root/carts.json.
+
+	Example json looks like this:
+	{
+        "username":"myuserid",
+        "password":"mypassword"
+	}
+
+	You can also include urls in the json file.e
+	{
+	        "username":"myuserid",
+		"password":"mypassword",
+	        "urlbase": "https://teradata-stacki.s3.amazonaws.com/3rdparty",
+	        "files": [ "release/stacki/5.x/stacki-5.0_20171128_b0ed4e3-redhat7.x86_64.disk1.iso" ]
+	}
+	</example>
 	"""
 
 	def fixPerms(self,cart):
@@ -88,11 +108,11 @@ class Command(stack.commands.CartArgumentProcessor,
 				except:
 					pass
 	def run(self, params, args):
-		filename, url, urlfile, dldir, service = self.fillParams([('file', None),
+		filename, url, urlfile, dldir, authfile = self.fillParams([('file', None),
 						('url', None),
 						('urlfile', None),
 						('downloaddir', '/tmp/'),
-						('service', 'artifactory')
+						('authfile', None) 
 						])
 
 		carts = args
@@ -108,8 +128,5 @@ class Command(stack.commands.CartArgumentProcessor,
 					self.runImplementation('default', cart)
 					self.fixPerms(cart)
 		else:
-			print('network')
-			self.runImplementation('network_cart', (url,urlfile,dldir,service))
+			self.runImplementation('network_cart', (url,urlfile,dldir,authfile))
 #			self.fixPerms(cart)
-		
-
