@@ -111,9 +111,9 @@ def outputPartition(p, initialize):
 
 	if p['fstype']:
 		xml_partitions.append('\t\t\t\t<format config:type="boolean">%s</format>' % format)
-		if initialize == 'true':
+		if attributes['disklabel'].lower() != "msdos":
 			xml_partitions.append('\t\t\t\t<filesystem config:type="symbol">%s</filesystem>' % p['fstype'])
-		else:
+		if attributes['os.version'] == "12.x" and attributes['os'] == "sles" and attributes['disklabel'].lower() != "msdos":
 			xml_partitions.append('\t\t\t\t<partition_nr config:type="integer">%s</partition_nr>' % p['partnumber'])
 
 	#
@@ -221,7 +221,7 @@ def outputDisk(disk, initialize):
 	# only output XML configuration for this disk if there is partitioning
 	# configuration for this disk
 	#
-	if xml_partitions:
+	if xml_partitions and attributes['disklabel'].lower() != "msdos":
 		if 'disklabel' in attributes:
 			disklabel = attributes['disklabel']
 		else:
@@ -239,6 +239,18 @@ def outputDisk(disk, initialize):
 		print('\t\t</partitions>')
 
 		print('\t</drive>')
+	elif xml_partitions:
+		if 'disklabel' in attributes:
+			disklabel = attributes['disklabel']
+		else:
+			disklabel = 'gpt'
+		print('\t<fstab>')
+		print('\t\t<use_existing_fstab config:type="boolean">true</use_existing_fstab>')
+		print('\t\t<partitions config:type="list">')
+		for p in xml_partitions:
+			print('%s' % p)
+		print('\t\t</partitions>')
+		print('\t</fstab>')
 	# elif xml_partitions and initialize == 'false':
 	return
 
@@ -552,8 +564,10 @@ elif 'nukedisks' in attributes:
 else:
 	nukedisks = 'false'
 
-print('<partitioning xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns" config:type="list">')
-
+if nukedisks.lower() == 'false' and  attributes['disklabel'].lower() == "msdos":
+	print('<partitioning_advanced xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns">')
+else:
+	print('<partitioning xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns" config:type="list">')
 
 #
 # process all nuked disks first
@@ -575,4 +589,7 @@ for disk in host_disks:
 		outputDisk(disk, initialize)	
 
 
-print('</partitioning>')
+if nukedisks.lower() == 'false' and  attributes['disklabel'].lower() == "msdos":
+	print('</partitioning_advanced>')
+else:
+	print('</partitioning>')
