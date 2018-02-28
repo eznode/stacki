@@ -40,7 +40,6 @@ class Implementation(stack.commands.Implementation):
 	def download_url(self, url, dest, curl_cmd):
 		# Retry the curl command 3 times, in case of error
 		retry = 3
-		o = ''
 		while retry:
 			p = subprocess.Popen(curl_cmd,
 				stdout=subprocess.PIPE,
@@ -104,6 +103,7 @@ class Implementation(stack.commands.Implementation):
 
 			
 		for url in urls:
+			url = url.strip('\n')
 			cmd = 'curl -kSs --retry 3 -w %{http_code} '
 			if curl_args:
 				cmd += curl_args
@@ -111,6 +111,6 @@ class Implementation(stack.commands.Implementation):
 			cartname = os.path.basename(url)
 			dest = '%s/%s' % (dldir,cartname)
 			cmd += " %s -o %s" % (url, dest)
-			self.download_url(url, dest, cmd.split())
-			# unpack the cart
+			self.download_url(url.strip('\n'), dest, cmd.split())
+#			# unpack the cart
 			self.owner.call('unpack.cart', ['file=%s' % dest])

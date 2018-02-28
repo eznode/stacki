@@ -59,17 +59,17 @@ class Command(stack.commands.CartArgumentProcessor,
 	{
 	        "username":"myuserid",
 		"password":"mypassword",
-	        "urlbase": "https://teradata-stacki.s3.amazonaws.com/3rdparty",
-	        "files": [ "release/stacki/5.x/stacki-5.0_20171128_b0ed4e3-redhat7.x86_64.disk1.iso" ]
+	        "urlbase": "https://sdartifact.td.teradata.com/artifactory",
+	        "files": [ "pkgs-generic-snapshot-sd/stacki-5/kubernetes/kubernetes-stacki5-12.02.18.02.12-rc3.tgz" ]
 	}
 	</example>
 	"""
 
-	def fixPerms(self,cart):
+	def fixPerms(self):
 		# make sure apache can read all the files and directories
 		gr_name, gr_passwd, gr_gid, gr_mem = grp.getgrnam('apache')
 
-		cartpath = '/export/stack/carts/%s' % cart
+		cartpath = '/export/stack/carts/'
 
 		for dirpath, dirnames, filenames in os.walk(cartpath):
 			try:
@@ -120,13 +120,13 @@ class Command(stack.commands.CartArgumentProcessor,
 		if filename != None and len(filename) > 0:
 			self.runImplementation('local_cart', filename)
 
-		if url == None and urlfile == None and filename == None:
+		if url == urlfile == filename == authfile == None:
 			if not len(carts):
 				raise ArgRequired(self, 'cart')
 			else:
 				for cart in carts:
 					self.runImplementation('default', cart)
-					self.fixPerms(cart)
 		else:
 			self.runImplementation('network_cart', (url,urlfile,dldir,authfile))
-#			self.fixPerms(cart)
+		# dude, we have know idea if they saved the correct perms - fix it.
+		self.fixPerms()
