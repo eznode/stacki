@@ -113,7 +113,7 @@ def outputPartition(p, initialize):
 		xml_partitions.append('\t\t\t\t<format config:type="boolean">%s</format>' % format)
 		if attributes['disklabel'].lower() != "msdos":
 			xml_partitions.append('\t\t\t\t<filesystem config:type="symbol">%s</filesystem>' % p['fstype'])
-		if not initialize and \
+		if initialize.lower() != "true" and \
 			attributes['os.version'] == "12.x" and \
 			attributes['disklabel'].lower() != "msdos":
 			xml_partitions.append('\t\t\t\t<partition_nr config:type="integer">%s</partition_nr>' % p['partnumber'])
