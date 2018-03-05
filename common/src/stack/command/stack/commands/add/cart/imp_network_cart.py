@@ -37,7 +37,7 @@ class Implementation(stack.commands.Implementation):
 		except:
 			return(None,None,auth['username'],auth['password'])
 
-	def download_url(self, url, dest, curl_cmd):
+	def download_url(self, dest, curl_cmd):
 		# Retry the curl command 3 times, in case of error
 		retry = 3
 		while retry:
@@ -51,17 +51,17 @@ class Implementation(stack.commands.Implementation):
 				print(e)
 				time.sleep(1)
 			else:
-				if o.strip() == '200':
+				if o.decode() == '200':
 					retry = 0
 				else:
 					retry = retry - 1
-					print("Error: Cannot download. HTTP STATUS: %s" % o)
+					print("Error: Cannot download. HTTP STATUS: %s" % o.decode())
 					if os.path.exists(dest):
 						os.unlink(dest)
 					time.sleep(1)
 
 	def get_cmd(self,user,passwordauthfile):
-		cmd='curl -kSs --retry 3 -w %{http_code} '
+		cmd='curl -kSsL --retry 3 -w %{http_code} '
 		if authfile == None:
 			return(cmd)
 		else:
@@ -104,13 +104,16 @@ class Implementation(stack.commands.Implementation):
 			
 		for url in urls:
 			url = url.strip('\n')
-			cmd = 'curl -kSs --retry 3 -w %{http_code} '
+			# insecure (k), show silent errors (S), silent (s), 
+			# Follow redirects (L), retry (3), return code (w)
+			cmd = 'curl -kSsL --retry 3 -w %{http_code} '
 			if curl_args:
 				cmd += curl_args
 
 			cartname = os.path.basename(url)
 			dest = '%s/%s' % (dldir,cartname)
 			cmd += " %s -o %s" % (url, dest)
-			self.download_url(url.strip('\n'), dest, cmd.split())
-#			# unpack the cart
+			self.download_url(dest,cmd.split())
+#			print(cmd)
+			# unpack the cart
 			self.owner.call('unpack.cart', ['file=%s' % dest])
