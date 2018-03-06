@@ -114,6 +114,4 @@ class Implementation(stack.commands.Implementation):
 			dest = '%s/%s' % (dldir,cartname)
 			cmd += " %s -o %s" % (url, dest)
 			self.download_url(dest,cmd.split())
-#			print(cmd)
-			# unpack the cart
-			self.owner.call('unpack.cart', ['file=%s' % dest])
+			return(dest)
