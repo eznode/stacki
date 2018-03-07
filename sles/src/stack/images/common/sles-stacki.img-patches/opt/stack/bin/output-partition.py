@@ -68,7 +68,7 @@ def nukeIt(disk):
 def outputPartition(p, initialize):
 	xml_partitions = []
 
-	if initialize == 'true':
+	if initialize.lower() == 'true':
 		create = 'true'
 	else:
 		create = 'false'
@@ -113,7 +113,7 @@ def outputPartition(p, initialize):
 		xml_partitions.append('\t\t\t\t<format config:type="boolean">%s</format>' % format)
 		if format.lower() == "true":
 			xml_partitions.append('\t\t\t\t<filesystem config:type="symbol">%s</filesystem>' % p['fstype'])
-		if initialize.lower() != "true" and attributes['os.version'] == "12.x":
+		if initialize.lower() != "true":
 			xml_partitions.append('\t\t\t\t<partition_nr config:type="integer">%s</partition_nr>' % p['partnumber'])
 
 	#
@@ -188,7 +188,7 @@ def doPartitions(disk, initialize):
 
 	xml_partitions = []
 
-	if initialize == 'true':
+	if initialize.lower() == 'true':
 		#
 		# since we are wiping this disk, use the partitions from
 		# the CSV
@@ -221,7 +221,7 @@ def outputDisk(disk, initialize):
 	# only output XML configuration for this disk if there is partitioning
 	# configuration for this disk
 	#
-	if xml_partitions and initialize.lower() == "true":
+	if xml_partitions:
 		if 'disklabel' in attributes:
 			disklabel = attributes['disklabel']
 		else:
