@@ -90,14 +90,14 @@ def outputPartition(p, initialize):
 	if mnt in [ '/', '/var', '/boot', '/boot/efi' ]:
 		format = 'true'
 	else:
-		if initialize == 'true':
+		if initialize.lower() == 'true':
 			format = 'true'
 		else:
 			format = 'false'
 
 	xml_partitions.append('\t\t\t<partition>')
 
-	if initialize == 'true':
+	if initialize.lower() == 'true':
 		xml_partitions.append('\t\t\t\t<create config:type="boolean">%s</create>' % create)
 
 	if mnt:
@@ -110,10 +110,9 @@ def outputPartition(p, initialize):
 			xml_partitions.append('\t\t\t\t<size>%dM</size>' %  p['size'])
 
 	if p['fstype']:
+		if initialize.lower() == 'true':
+			xml_partitions.append('\t\t\t\t<filesystem config:type="symbol">%s</filesystem>' % p['fstype'])
 		xml_partitions.append('\t\t\t\t<format config:type="boolean">%s</format>' % format)
-		xml_partitions.append('\t\t\t\t<filesystem config:type="symbol">%s</filesystem>' % p['fstype'])
-		if initialize.lower() != "true":
-			xml_partitions.append('\t\t\t\t<partition_nr config:type="integer">%s</partition_nr>' % p['partnumber'])
 
 	#
 	# see if there is a label or 'asprimary' associated with this partition
@@ -220,7 +219,7 @@ def outputDisk(disk, initialize):
 	# only output XML configuration for this disk if there is partitioning
 	# configuration for this disk
 	#
-	if xml_partitions:
+	if xml_partitions and initialize.lower() == 'true':
 		if 'disklabel' in attributes:
 			disklabel = attributes['disklabel']
 		else:
@@ -230,12 +229,27 @@ def outputDisk(disk, initialize):
 		print('\t\t<device>/dev/%s</device>' % disk)
 		print('\t\t<disklabel>%s</disklabel>' % disklabel)
 		print('\t\t<initialize config:type="boolean">%s</initialize>' % initialize)
+		print('')
+
 		print('\t\t<partitions config:type="list">')
 		for p in xml_partitions:
 			print('%s' % p)
 		print('\t\t</partitions>')
 
 		print('\t</drive>')
+	elif xml_partitions and initialize.lower() == 'false':
+		if 'disklabel' in attributes:
+			disklabel = attributes['disklabel']
+		else:
+			disklabel = 'gpt'
+		print('\t<fstab>')
+		print('\t\t<use_existing_fstab config:type="boolean">true</use_existing_fstab>')
+		print('\t\t<partitions config:type="list">')
+		for p in xml_partitions:
+			print('%s' % p)
+		print('\t\t</partitions>')
+		print('\t</fstab>')
+
 	return
 
 
@@ -302,28 +316,9 @@ def getHostPartitionDevices(disk):
 
 	return devices
 
-def getUUID(dev):
-	"""Returns uuid for /dev/sd<x><#>"""
-	uuid = dev
-	p = subprocess.Popen(['blkid', '-o', 'export', '%s' % dev],
-		stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-		stderr=subprocess.PIPE)
-	o = p.communicate()[0]
-	out = o.decode()
-	for l in out.split('\n'):
-		# Ignore empty lines
-		if not l.strip():
-			continue
-		elif l.startswith("UUID="):
-			uuid = l
-			break
-	return uuid
-
 
 def getHostMountpoint(host_fstab, uuid, label):
 	for part in host_fstab:
-		if '/dev/' in part['device']:
-			part['device'] = getUUID(part['device'])
 		if part['device'] == 'UUID=%s' % uuid:
 			return part['mountpoint']
 		elif part['device'] == 'LABEL=%s' % label:
@@ -341,12 +336,16 @@ def getDiskPartNumber(disk):
 		stderr=subprocess.PIPE)
 	o = p.communicate()[0]
 	out = o.decode()
-	for line in out.splitlines():
-		if "PART_ENTRY_NUMBER" in line:
-			arr = line.split('=')
-			if len(arr) == 2:
-				partnumber = arr[1].strip()
-				return partnumber
+
+	#
+	# the above should only return one line
+	#
+	arr = out.split('=')
+
+	if len(arr) == 2:
+		partnumber = arr[1].strip()
+
+	return partnumber
 
 
 def getHostPartitions(host_disks, host_fstab):
@@ -540,16 +539,19 @@ print('')
 # For 2, reformat "/", "/boot" (if present) and "/var" on the boot disk, then
 # reconnect all other discovered partitions.
 #
-# if host_fstab is an empty list, turning on nukedisks=True" to avoid SLES defaults
+# if host_fstab is an empty list, turning on nukedisks=true" to avoid SLES defaults
 if host_fstab == []:
-	nukedisks = 'True'
+	nukedisks = 'true'
 elif 'nukedisks' in attributes:
 	nukedisks = attributes['nukedisks']
 else:
 	nukedisks = 'false'
 
+if nukedisks.lower() == 'true':
+	print('<partitioning xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns" config:type="list">')
+else:
+	print('<partitioning_advanced xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns">')
 
-print('<partitioning xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns" config:type="list">')
 
 #
 # process all nuked disks first
@@ -571,4 +573,8 @@ for disk in host_disks:
 		outputDisk(disk, initialize)	
 
 
-print('</partitioning>')
+if nukedisks.lower() == 'true':
+	print('</partitioning>')
+else:
+	print('</partitioning_advanced>')
+print('')
