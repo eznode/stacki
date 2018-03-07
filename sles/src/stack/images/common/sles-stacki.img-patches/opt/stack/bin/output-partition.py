@@ -111,8 +111,7 @@ def outputPartition(p, initialize):
 
 	if p['fstype']:
 		xml_partitions.append('\t\t\t\t<format config:type="boolean">%s</format>' % format)
-		if format.lower() == "true":
-			xml_partitions.append('\t\t\t\t<filesystem config:type="symbol">%s</filesystem>' % p['fstype'])
+		xml_partitions.append('\t\t\t\t<filesystem config:type="symbol">%s</filesystem>' % p['fstype'])
 		if initialize.lower() != "true":
 			xml_partitions.append('\t\t\t\t<partition_nr config:type="integer">%s</partition_nr>' % p['partnumber'])
 
@@ -231,8 +230,6 @@ def outputDisk(disk, initialize):
 		print('\t\t<device>/dev/%s</device>' % disk)
 		print('\t\t<disklabel>%s</disklabel>' % disklabel)
 		print('\t\t<initialize config:type="boolean">%s</initialize>' % initialize)
-		print('')
-
 		print('\t\t<partitions config:type="list">')
 		for p in xml_partitions:
 			print('%s' % p)
