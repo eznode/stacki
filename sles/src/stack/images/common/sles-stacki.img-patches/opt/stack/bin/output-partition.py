@@ -110,7 +110,8 @@ def outputPartition(p, initialize):
 			xml_partitions.append('\t\t\t\t<size>%dM</size>' %  p['size'])
 
 	if p['fstype']:
-		if initialize.lower() == 'true':
+		if initialize.lower() == 'true' or \
+			(attributes['disklabel'].lower() != "msdos" and len(device_set) > 1):
 			xml_partitions.append('\t\t\t\t<filesystem config:type="symbol">%s</filesystem>' % p['fstype'])
 		xml_partitions.append('\t\t\t\t<format config:type="boolean">%s</format>' % format)
 
@@ -139,6 +140,9 @@ def outputPartition(p, initialize):
 
 	if create == 'true' and partition_id:
 		xml_partitions.append('\t\t\t\t<partition_id config:type="integer">%s</partition_id>' % partition_id)
+	if attributes['disklabel'].lower() != "msdos" and len(device_set) > 1:
+		xml_partitions.append('\t\t\t\t<partition_nr config:type="integer">%s</partition_nr>' % p['partnumber'])
+
 
 	if label:
 		xml_partitions.append('\t\t\t\t<label>%s</label>' % label)
@@ -219,7 +223,8 @@ def outputDisk(disk, initialize):
 	# only output XML configuration for this disk if there is partitioning
 	# configuration for this disk
 	#
-	if xml_partitions and initialize.lower() == 'true':
+	if xml_partitions and initialize.lower() == 'true' or \
+		(attributes['disklabel'].lower() != "msdos" and len(device_set) > 1):
 		if 'disklabel' in attributes:
 			disklabel = attributes['disklabel']
 		else:
@@ -337,15 +342,12 @@ def getDiskPartNumber(disk):
 	o = p.communicate()[0]
 	out = o.decode()
 
-	#
-	# the above should only return one line
-	#
-	arr = out.split('=')
-
-	if len(arr) == 2:
-		partnumber = arr[1].strip()
-
-	return partnumber
+	for line in out.splitlines():
+		if "PART_ENTRY_NUMBER" in line:
+			arr = line.split('=')
+			if len(arr) == 2:
+				partnumber = arr[1].strip()
+				return partnumber
 
 
 def getHostPartitions(host_disks, host_fstab):
@@ -547,7 +549,15 @@ elif 'nukedisks' in attributes:
 else:
 	nukedisks = 'false'
 
-if nukedisks.lower() == 'true':
+# Check how many disks we are partitioning
+device_set = set()
+for each in csv_partitions:
+        device_set.add(each['device'])
+
+# The disklabel and device_set check allow us to successfully use 
+# nukedisks=false on gpt with multiple disks
+if nukedisks.lower() == 'true' or \
+	(attributes['disklabel'].lower() != "msdos" and len(device_set) > 1):
 	print('<partitioning xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns" config:type="list">')
 else:
 	print('<partitioning_advanced xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns">')
@@ -573,7 +583,10 @@ for disk in host_disks:
 		outputDisk(disk, initialize)	
 
 
-if nukedisks.lower() == 'true':
+# The disklabel and device_set check allow us to successfully use 
+# nukedisks=false on gpt with multiple disks
+if nukedisks.lower() == 'true' or \
+	(attributes['disklabel'].lower() != "msdos" and len(device_set) > 1):
 	print('</partitioning>')
 else:
 	print('</partitioning_advanced>')
