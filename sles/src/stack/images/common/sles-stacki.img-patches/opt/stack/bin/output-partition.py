@@ -140,7 +140,9 @@ def outputPartition(p, initialize):
 
 	if create == 'true' and partition_id:
 		xml_partitions.append('\t\t\t\t<partition_id config:type="integer">%s</partition_id>' % partition_id)
-	if attributes['disklabel'].lower() != "msdos" and len(device_set) > 1:
+	if initialize.lower() != 'true' and \
+		attributes['disklabel'].lower() != "msdos" and \
+		len(device_set) > 1:
 		xml_partitions.append('\t\t\t\t<partition_nr config:type="integer">%s</partition_nr>' % p['partnumber'])
 
 
@@ -234,8 +236,6 @@ def outputDisk(disk, initialize):
 		print('\t\t<device>/dev/%s</device>' % disk)
 		print('\t\t<disklabel>%s</disklabel>' % disklabel)
 		print('\t\t<initialize config:type="boolean">%s</initialize>' % initialize)
-		print('')
-
 		print('\t\t<partitions config:type="list">')
 		for p in xml_partitions:
 			print('%s' % p)
