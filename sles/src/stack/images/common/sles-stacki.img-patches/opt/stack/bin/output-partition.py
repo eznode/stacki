@@ -225,6 +225,11 @@ def outputDisk(disk, initialize):
 	# only output XML configuration for this disk if there is partitioning
 	# configuration for this disk
 	#
+	if import_fstab:
+		if disk.lower() not in single_root_drive:
+			# We will handle the data disks mount points post install.
+			# Autoyast doesn't handle this correctly
+			return
 	if xml_partitions and initialize.lower() == 'true' or \
 		(attributes['disklabel'].lower() != "msdos" and len(device_set) > 1):
 		if 'disklabel' in attributes:
@@ -553,6 +558,39 @@ else:
 device_set = set()
 for each in csv_partitions:
         device_set.add(each['device'])
+
+
+
+# Giving up hope on AutoYast not-initializing data disks.
+# (https://jira.td.teradata.com/jira/browse/OSEDEV-2132)
+# We need to only touch the disk with "/", "/boot" (if present) and "/var"
+# These partitions can only be on one disk, so checking for that below:
+
+import_fstab = False
+if nukedisks.lower() == "false" and len(device_set) > 1: 
+	single_root_drive = set()
+	for each_partition in csv_partitions:
+		if each_partition['mountpoint'] in [ '/', '/var', '/boot', '/boot/efi' ]:
+			single_root_drive.add(each_partition['device'])
+	if len(single_root_drive) == 1:
+		import_fstab = True
+	# print(" : %s\n" % )
+	# for each_attribute in attributes:
+	# 	print("%s : %s" % (each_attribute, attributes[each_attribute]))
+	# print("\nnukedisks: %s\n" % nukedisks)
+	# print("device_set : %s\n" % device_set)
+	# print("host_disks : %s\n" % host_disks)
+	# for each_host_fstab in host_fstab:
+	# 	print("host_fstab : %s\n" % each_host_fstab)
+	# for each_host_partitions in host_partitions:
+	# 	print("host_partitions : %s" % each_host_partitions)
+	# print("csv_partitions : %s\n" % csv_partitions)
+	# print("parts : %s\n" % parts)
+
+# Need to output the remaining fstab to be utilized post install. 
+# Giving it some thought if I should use the raw text, or what was previously parsed above. 
+# Not really sure yet, will first check that the above single drive attempt works beforehand.
+
 
 # The disklabel and device_set check allow us to successfully use 
 # nukedisks=false on gpt with multiple disks
