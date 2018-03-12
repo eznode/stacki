@@ -110,8 +110,7 @@ def outputPartition(p, initialize):
 			xml_partitions.append('\t\t\t\t<size>%dM</size>' %  p['size'])
 
 	if p['fstype']:
-		if initialize.lower() == 'true' or \
-			(attributes['disklabel'].lower() != "msdos" and len(device_set) > 1):
+		if initialize.lower() == 'true':
 			xml_partitions.append('\t\t\t\t<filesystem config:type="symbol">%s</filesystem>' % p['fstype'])
 		xml_partitions.append('\t\t\t\t<format config:type="boolean">%s</format>' % format)
 
@@ -140,10 +139,6 @@ def outputPartition(p, initialize):
 
 	if create == 'true' and partition_id:
 		xml_partitions.append('\t\t\t\t<partition_id config:type="integer">%s</partition_id>' % partition_id)
-	if initialize.lower() != 'true' and \
-		attributes['disklabel'].lower() != "msdos" and \
-		len(device_set) > 1:
-		xml_partitions.append('\t\t\t\t<partition_nr config:type="integer">%s</partition_nr>' % p['partnumber'])
 
 
 	if label:
@@ -230,8 +225,7 @@ def outputDisk(disk, initialize):
 			# We will handle the data disks mount points post install.
 			# Autoyast doesn't handle this correctly
 			return
-	if xml_partitions and initialize.lower() == 'true' or \
-		(attributes['disklabel'].lower() != "msdos" and len(device_set) > 1):
+	if xml_partitions and initialize.lower() == 'true':
 		if 'disklabel' in attributes:
 			disklabel = attributes['disklabel']
 		else:
@@ -594,8 +588,7 @@ if nukedisks.lower() == "false" and len(device_set) > 1:
 
 # The disklabel and device_set check allow us to successfully use 
 # nukedisks=false on gpt with multiple disks
-if nukedisks.lower() == 'true' or \
-	(attributes['disklabel'].lower() != "msdos" and len(device_set) > 1):
+if nukedisks.lower() == 'true':
 	print('<partitioning xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns" config:type="list">')
 else:
 	print('<partitioning_advanced xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns">')
@@ -623,8 +616,7 @@ for disk in host_disks:
 
 # The disklabel and device_set check allow us to successfully use 
 # nukedisks=false on gpt with multiple disks
-if nukedisks.lower() == 'true' or \
-	(attributes['disklabel'].lower() != "msdos" and len(device_set) > 1):
+if nukedisks.lower() == 'true':
 	print('</partitioning>')
 else:
 	print('</partitioning_advanced>')
