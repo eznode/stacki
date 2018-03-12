@@ -24,12 +24,6 @@ class command(stack.commands.set.command, stack.commands.OSArgumentProcessor):
 		if b_type not in [ 'os', 'install' ]:
 			raise ParamValue(self, 'type', '"os" or "install"')
 
-		#
-		# 'install' action type should have os parameter specified.
-		# 'os' action type need not have os parameter specified.
-		#
-		if b_type == "install" and not b_os:
-			raise ParamRequired(self, 'os is required for action=install')
 		if b_os:
 			b_os = self.getOSNames([b_os])[0]
 
