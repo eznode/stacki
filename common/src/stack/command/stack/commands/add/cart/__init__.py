@@ -6,10 +6,14 @@
 
 import os
 import grp
+import json
 import stat
 import tarfile
+import requests
+import shutil
 import stack.file
 import stack.commands
+from stack.bool import str2bool
 from pathlib import Path
 from stack.exception import ArgRequired, ArgUnique, CommandError
 
@@ -47,6 +51,10 @@ class Command(stack.commands.CartArgumentProcessor,
 	supported.
 	</param>
 
+	<param type='boolean' name='downloadonly'>
+	If you just want to download them, set downloadonly=True.
+	</param>
+
 	<example cmd="add cart urlfile=/tmp/tdurls downloaddir=/export authfile=/root/carts.json">
 	Download the carts in /tmp/tdurls into /export.
 	Use the username/password in /root/carts.json.
@@ -67,7 +75,7 @@ class Command(stack.commands.CartArgumentProcessor,
 	</example>
 	"""
 
-	def fixPerms(self):
+	def fix_perms(self):
 		# make sure apache can read all the files and directories
 		# This is the atomic bomb change permissions because 
 		# it changes everything to root:apache in /export/stack/carts
@@ -112,7 +120,7 @@ class Command(stack.commands.CartArgumentProcessor,
 				except:
 					pass
 
-	def checkCart(self,cartfile):
+	def check_cart(self,cartfile):
 		req =  ['RPMS', 'graph', 'nodes']
 		if tarfile.is_tarfile(cartfile) == True:
 			with tarfile.open(cartfile,'r|*') as tar:
@@ -130,12 +138,12 @@ class Command(stack.commands.CartArgumentProcessor,
 		else:
 			return False
 
-	def unpackCart(self, cart, cartfile, cartsdir):
-		with tarfile.open(cartfile,'r:*') as tar:
-			if self.checkCart(cartfile) == True:
-				print("Unpacking....%s" % cart)
+	def unpack_cart(self, cart, cartfile, cartsdir):
+		with tarfile.open(cartfile,'r|*') as tar:
+			if self.check_cart(cartfile) == True:
+#				print("Unpacking....%s" % cart)
 				tar.extractall(cartsdir)
-				print("\nUnpacked!")
+#				print("\nUnpacked!")
 				return True
 			else:
 				print("That's no cart tarfile!")
@@ -144,7 +152,7 @@ class Command(stack.commands.CartArgumentProcessor,
 				return False
 		tar.close()
 
-	def createFiles(self, name, path):
+	def create_files(self, name, path):
 
 		# write the graph file
 		graph = open(os.path.join(path, 'graph', 'cart-%s.xml' % name), 'w')
@@ -168,11 +176,18 @@ class Command(stack.commands.CartArgumentProcessor,
 		node.write('</stack:stack>\n')
 		node.close()
 
-	def addCart(self,cart):
-		for row in self.db.select("""
+	def add_cart(self,cart):
+		# if the cart doesn't exist, 
+		# add it to the database.
+		rows = self.db.select("""
 			* from carts where name = '%s'
-			""" % cart):
-			raise CommandError(self, '"%s" cart exists' % cart)
+			""" % cart)
+
+		# Add the cart to the database so we can enable it for a box
+		if not rows:
+			self.db.execute("""
+				insert into carts(name) values ('%s')
+				""" % cart)
 
 		# If the directory does not exist create it along with
 		# a skeleton template.
@@ -184,17 +199,11 @@ class Command(stack.commands.CartArgumentProcessor,
 
 			cartpath = os.path.join(tree.getRoot(), cart)
 			args = [ cart, cartpath ]
-			self.createFiles(cart, cartpath)
+			self.create_files(cart, cartpath)
 
-		# Files were already on disk either manually created or by the
-		# simple template above.
-		# Add the cart to the database so we can enable it for a box
 
-		self.db.execute("""
-			insert into carts(name) values ('%s')
-			""" % cart)
 		
-	def addCartFile(self,cartfile):
+	def add_cart_file(self,cartfile):
 		cartsdir = '/export/stack/carts/'
 		# if multiple suffixes, increment to remove
 		# the right number to create the correct cart.
@@ -208,9 +217,15 @@ class Command(stack.commands.CartArgumentProcessor,
 		fbase = os.path.basename(cartfile).rsplit('.',snum)[0]
 		# This fixes people's stupid.
 		# take care of when the cart isn't packed right
-		with tarfile.open(cartfile,'r:*') as tar:
-			tardir = tar.getnames()[0]
-		tar.close()
+		if Path(cartfile).is_file() == True: 
+			if tarfile.is_tarfile(cartfile) == True:
+				with tarfile.open(cartfile,'r|*') as tar:
+					tardir = tar.getnames()[0]
+				tar.close()
+			else:
+				raise CommandError(self,"%s is not a tgz." % cartfile)
+		else:
+			raise CommandError(self,"%s does not exist." % cartfile)
 
 		if tardir == fbase:
 			cart = fbase
@@ -220,27 +235,80 @@ class Command(stack.commands.CartArgumentProcessor,
 		else:
 			cart = tardir
 
-		self.addCart(cart)
-		self.unpackCart(cart, cartfile, cartsdir)
+		self.add_cart(cart)
+		self.unpack_cart(cart, cartfile, cartsdir)
+
+	def get_auth_info(self,authfile):
+		if not os.path.exists(authfile):
+			msg = '%s file not found' % authfile
+			raise CommandError(self, msg)
+
+		with open(authfile, 'r') as a:
+			auth = json.load(a)
+
+		if not auth:
+			sys.stderr.write("Cannot read auth file %s\n" % \
+				(authfile))
+		try:
+			base = auth['urlbase']
+			urlfiles = auth['files']
+			return(base,urlfiles,auth['username'],auth['password'])
+		except:
+			return(None,None,auth['username'],auth['password'])
+
+	def get_urls(self, url, urlfile, dldir, authfile):
+		urls = []
+		if urlfile != None:
+			with open(urlfile,'r') as f:
+				urls = f.readlines()
+			f.close()
+			
+		if url != None:
+			urls.append(url)
+
+		# check for urls in the json file
+		if authfile:
+			base, urlfiles, user, passwd = \
+					self.get_auth_info(authfile)
+		else:
+			base = urlfiles = user = password = None
+
+		# authfile might not have a base or urlfiles
+		# we are requiring both.
+		if base == None or urlfiles == None:
+			pass
+		else:
+			for url in urlfiles:
+				urls.append('%s/%s' % (base,url))
+		return(urls)
+
+	def download_url(self, url, dest, fname, user, password):
+		r = requests.get(url, stream=True, 
+			auth=(user,password), timeout=5)
+		if r.status_code == 200:
+			with open(dest, 'wb') as f:
+				shutil.copyfileobj(r.raw, f)
+		else:
+			raise CommandError(self, "Could not connect to server.")
 		
 	def run(self, params, args):
-		cartfile, url, urlfile, dldir, authfile = \
+		cartfile, url, urlfile, dldir, authfile, donly = \
 			self.fillParams([('file', None),
 					('url', None),
 					('urlfile', None),
-					('downloaddir', '/tmp/'),
-					('authfile', None) 
+					('downloaddir', '/tmp'),
+					('authfile', None), 
+					('downloadonly', False)
 					])
 
 		carts = args
-
 		# check if we are creating a new cart
 		if url == urlfile == cartfile == authfile == None:
 			if not len(carts):
 				raise ArgRequired(self, 'cart')
 			else:
 				for cart in carts:
-					self.addCart(cart)
+					self.add_cart(cart)
 
 		# If there's a filename, check it.
 		if cartfile == None:
@@ -248,24 +316,30 @@ class Command(stack.commands.CartArgumentProcessor,
 		elif Path(cartfile).exists() == True \
 			and Path(cartfile).is_file() == True:
 		# If there is a filename, make sure it's a tar gz file.	
-			if self.checkCart(cartfile) == True:
-				self.addCartFile(cartfile)
+			if self.check_cart(cartfile) == True:
+				self.add_cart_file(cartfile)
 			else:
 				msg = '%s is not a cart.' % cartfile
 				raise CommandError(self,msg)
 		else:
-			print('biteme')
 			msg = '%s was not found.' % cartfile
 			raise CommandError(self,msg)
 
 		# do the network cart if url or urlfile or authfile exist.
+#			base,urlfiles,user,passwd = self.get_auth_info(authfile)
 		if url != None or urlfile != None or authfile != None:
-			print("running network cart")
-			# download the carts.
-			# then addCartFile to them.
-			cartfile = self.runImplementation('network_cart', (url,urlfile,dldir,authfile))
-			print(cartfile)
-			self.addCartFile(cartfile)
+			if authfile != None:
+				base,urlfiles,user,passwd = \
+					self.get_auth_info(authfile)
+			# then add_cart_file to them.
+			urls = self.get_urls(url,urlfile,dldir,authfile)
+			for url in urls:
+				url = url.strip('\n')
+				cartfile = os.path.basename(url)
+				dest = '%s/%s' % (dldir,cartfile)
+				self.download_url(url, dest, cartfile, user, passwd)
+				if self.str2bool(donly) != True:
+					self.add_cart_file(dest)
 
 		# Fix all the perms all the time.
-		self.fixPerms()
+		self.fix_perms()
