@@ -26,7 +26,7 @@ class command(stack.commands.set.command, stack.commands.OSArgumentProcessor):
 
 		if not b_os:
 			b_os = self.os
-
+		
 		if b_os:
 			b_os = self.getOSNames([b_os])[0]
 
