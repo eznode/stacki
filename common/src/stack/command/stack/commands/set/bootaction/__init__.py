@@ -24,7 +24,11 @@ class command(stack.commands.set.command, stack.commands.OSArgumentProcessor):
 		if b_type not in [ 'os', 'install' ]:
 			raise ParamValue(self, 'type', '"os" or "install"')
 
-		if not b_os:
+		#
+		# If bootaction type is not os, then get the default
+		# os so code does nt break.
+		#
+		if not b_os and b_type != 'os':
 			b_os = self.os
 		
 		if b_os:
