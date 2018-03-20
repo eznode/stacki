@@ -4,20 +4,18 @@
 # @copyright@
 
 import os
-import re
-import subprocess
-import tempfile
 import time
-import fcntl
 import pexpect
-import errno
-from ipaddress import IPv4Interface, ip_network
 import logging
 from logging.handlers import RotatingFileHandler
-from stack.commands import Command
 import asyncio
 import signal
 import sys
+
+
+# A custom exception just so its easier to differentiate from Switch exceptions and system ones
+class SwitchException(Exception):
+	pass
 
 class Switch():
 	def __init__(self, switch_ip_address, switchname='switch', username='admin', password='admin'):
@@ -41,8 +39,8 @@ class Switch():
 		try:
 			self.disconnect()
 		except AttributeError:
+			pass
 			## TODO: release file lock here
-			print("%s's self.child already terminated or never started." % self.switch_ip_address)
 
 
 class SwitchDellX1052(Switch):
@@ -59,17 +57,21 @@ class SwitchDellX1052(Switch):
 			self._expect('Password:')
 			self.child.sendline(self.password)
 		except:
-			print("Couldn't connect to the switch")
+			raise SwitchException("Couldn't connect to the switch")
 
 	def disconnect(self):
 		# q will exit out of an existing scrollable more/less type of prompt
 		# Probably not necessary, but a bit safer
-		self.child.sendline("\nq\n")
-		# exit should cleanly exit the ssh
-		self.child.sendline("\nexit\n")
-		# Just give it a few seconds to exit gracefully before terminate.
-		time.sleep(3)
-		self.child.terminate()
+
+		# if there isn't an exit status
+		# close the connection
+		if not self.child.exitstatus:
+			self.child.sendline("\nq\n")
+			# exit should cleanly exit the ssh
+			self.child.sendline("\nexit\n")
+			# Just give it a few seconds to exit gracefully before terminate.
+			time.sleep(3)
+			self.child.terminate()
 		
 
 	def _expect(self, look_for, custom_timeout=15):
@@ -83,12 +85,12 @@ class SwitchDellX1052(Switch):
 				time.sleep(1)
 			debug_info = str(str(self.child.before) + str(self.child.buffer) + str(self.child.after))
 			self.__exit__()
-			raise Exception(self.switch_ip_address + " expected output '" + look_for +
+			raise SwitchException(self.switch_ip_address + " expected output '" + look_for +
 							"' from SSH connection timed out after " +
 							str(custom_timeout) + " seconds.\nBuffer: " + debug_info)
 		except pexpect.exceptions.EOF:
 			self.__exit__()
-			raise Exception("SSH connection to " + self.switch_ip_address + " not available.")
+			raise SwitchException("SSH connection to " + self.switch_ip_address + " not available.")
 
 	def get_mac_address_table(self):
 		"""Download the mac address table"""
@@ -223,12 +225,12 @@ class SwitchDellX1052(Switch):
 		"""Apply running-config to startup-config"""
 		try:
 			self.child.expect('console#')
-			self.child.sendline('copy running-config startup-config')
+			self.child.sendline('write')
 			self.child.expect('Overwrite file .startup-config.*\?')
 			self.child.sendline('Y')
 			self._expect('The copy operation was completed successfully')
 		except:
-			raise Exception('Could not confirm configuration')
+			raise SwitchException('Could not apply configuration to startup-config')
 		
 	def _vlan_parser(self, vlan_string):
 		"""Takes input of a bunch of numbers in gives back a string containing all numbers once.
@@ -281,17 +283,6 @@ class SwitchDellX1052(Switch):
 				my_list[parse_port - 1] = current_port_properties
 		return my_list
 
-	def configure(self, persistent=False):
-		"""Go through the steps to configure a switch with the config stored in the database."""
-		try:
-			self.connect()
-			self.upload()
-			if persistent:
-				self.apply_configuration()
-		except Exception as found_error:
-			print("%s: had exception: %s" % (self.switch_ip_address, str(found_error)))
-			self.__exit__()
-
 	def set_filenames(self, filename):
 		"""
 		Sets filenames for download, upload, and check files in /tftpboot/pxelinux
@@ -304,164 +295,3 @@ class SwitchDellX1052(Switch):
 
 	def set_tftp_ip(self, ip):
 		self.stacki_server_ip = ip
-
-class Discover:
-	"""
-	Start or stop a daemon that listens to the mac address table and inserts 
-	the association into the database
-	"""
-	def __init__(self, switchname='testing-switch', switch_address=None, frontend_tftp_address=None, logging_level=logging.INFO):
-		# Set up our logger
-		formatter = logging.Formatter("%(asctime)s $(levelname)s: %(message)s", "%Y-%m-%d %H:%M:%S:")
-		self._PIDFILE = f"/var/run/{switchname}-switch-discovery.pid" 
-		self._LOGFILE = f"/var/log/{switchname}-switch-discovery.log" 
-		
-		try:
-			handler = RotatingFileHandler(
-			self._LOGFILE,
-			maxBytes=10*1024*1024,
-			backupCount=3
-			)
-			handler.setFormatter(formatter)
-		except PermissionError:
-			# We don't have write access to the logfile, so just blackhole logs
-			handler = logging.NullHandler()
-
-		self._logger = logging.getLogger(f"{switchname}")
-		self._logger.setLevel(logging_level)
-		self._logger.addHandler(handler)
-		self.switchname = switchname
-		self.frontend_tftp_address = frontend_tftp_address
-		self.switch_address = switch_address
-		self._done = False
-
-	async def _start_switch_connection(self):
-		with SwitchDellX1052(self.switch_address, self.switchname) as switch:
-			switch.set_tftp_ip(self.frontend_tftp_address)
-			while not self._done:
-				switch.connect()
-				self._logger.info("Show mac address table")
-				switch.get_mac_address_table()
-				hosts = switch.parse_mac_address_table()
-				for vlan, mac, port, _ in hosts:
-					self.add_host_to_switch_db(
-					vlan,
-					mac,
-					port
-					)
-
-				switch.disconnect()
-				await asyncio.sleep(10)
-		
-
-	def start(self,command):
-		if os.fork() != 0:
-			return
-
-		os.close(0)
-		os.close(1)
-		os.close(2)
-
-		os.setsid()
-
-		if os.fork() != 0:
-			sys.exit(0)
-
-		self._command = command
-		self._command.db.database.connect()
-		self._command.db.link = self._command.db.database.cursor()
-
-		with open(self._PIDFILE, 'w') as f:
-			f.write(f'{os.getpid()}')
-
-		self._logger.info(f'{self.switchname} logging started')
-
-		# Get our coroutine event loop
-		loop = asyncio.get_event_loop()
-
-		# Setup signal handlers to cleanly stop
-		loop.add_signal_handler(signal.SIGINT, self._signal_handler)
-		loop.add_signal_handler(signal.SIGTERM, self._signal_handler)
-		try:
-			loop.run_until_complete(asyncio.gather(
-				self._start_switch_connection()
-			))
-		except:
-			self._logger.exception("event loop threw an exception")
-			status_code = 1
-		finally:
-			# All done, clean up
-			loop.close()
-			self._command.db.database.close()
-			#self._cleanup()
-
-		self._logger.info("Switch discovery stopped")
-
-	def stop(self):
-		self.keep_running = False
-		# Make sure not to kill the process while connected to the switch
-		try:
-			os.kill(self._get_pid(), signal.SIGTERM)
-		except OSError:
-			self._logger.exception("unable to stop switch discovery")
-			return False
-
-		return True
-
-	def _signal_handler(self):
-		self._done = True
-
-	def _get_pid(self):
-		pid = None
-		if os.path.exists(self._PIDFILE):
-			with open(self._PIDFILE) as f:
-				pid = int(f.read())
-		return pid
-
-	def is_running(self):
-		"Check if the daemon is running"
-
-		# Is our pidfile there
-		pid = self._get_pid()
-
-		if pid is not None:
-			# Is the process stilll running?
-			if os.path.isdir(f"/proc/{pid}"):
-				return True
-			else: 
-				# The process no longer exists, clean up the old files
-				self._cleanup()
-	
-	def _cleanup(self):
-		try:
-			os.remove(self._PIDFILE)
-		except:
-			pass
-
-	def add_host_to_switch_db(self, vlan, mac, port):
-		# Check if mac address belongs to a host we manage
-		rows = self._command.db.select(f"""
-		n.name
-		from nodes n, networks ns
-		where ns.mac = '%s'
-		and ns.node = n.id
-		""" % mac)
-			
-		for host, in rows:
-			for row in self._command.call("list.switch.host", [self.switchname]):
-				if row['port'] == int(port):
-					self._logger.info("port is already known: %s %s" % (self.switchname, port))
-					break
-			else:
-				result = subprocess.run([
-				"/opt/stack/bin/stack",
-				"add",
-				"switch",
-				"host",
-				self.switchname,
-				f"host={host}",
-				f"port={port}",
-				f"vlan={vlan}",
-				])
-
-

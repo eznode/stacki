@@ -2,12 +2,11 @@
 -foundation-comps
 -foundation-fbtftpd
 -foundation-gd
--foundation-mariadb
 -foundation-newt
 -foundation-py-pycairo
 -foundation-py-wxPython
 -foundation-redis
--sc-im
+-foundation-sc-im
 -stack-admin
 -stack-config-server
 -stack-ekv

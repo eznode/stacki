@@ -65,7 +65,7 @@ def Debug(message, level=syslog.LOG_DEBUG):
 		Log(message, level)
 		sys.__stderr__.write('%s\n' % m)
 		
-
+Debug('__init__:commands')
 
 class OSArgumentProcessor:
 	"""An Interface class to add the ability to process os arguments."""
@@ -95,19 +95,18 @@ class EnvironmentArgumentProcessor:
 	arguments."""
 		
 	def getEnvironmentNames(self, args=None):
-		list = []
+		environments = []
 		if not args:
-			args = ['%'] # find all appliances
+			args = [ '%' ]		 # find all appliances
 		for arg in args:
-			rows = self.db.execute("""select name from environments
-				where name like '%s'""" % arg)
-			if rows == 0 and arg == '%': # empty table is OK
-				continue
-			if rows < 1:
+			found = False
+			for (envName, ) in self.db.select("name from environments where name like '%s'" % arg):
+				found = True
+				environments.append(envName)
+			if not found and arg != '%':
 				raise CommandError(self, 'unknown environment "%s"' % arg)
-			for name, in self.db.fetchall():
-				list.append(name)
-		return list
+
+		return environments
 
 
 class ApplianceArgumentProcessor:
@@ -121,19 +120,18 @@ class ApplianceArgumentProcessor:
 		arg does not match anything in the database we raise
 		an exception. If the ARGS list is empty return all appliance names.
 		"""	
-		list = []
+		appliances  = []
 		if not args:
-			args = ['%'] # find all appliances
+			args = [ '%' ]		 # find all appliances
 		for arg in args:
-			rows = self.db.execute("""select name from appliances 
-				where name like '%s'""" % arg)
-			if rows == 0 and arg == '%': # empty table is OK
-				continue
-			if rows < 1:
+			found = False
+			for (appName, ) in self.db.select("name from appliances where name like '%s'" % arg):
+				found = True
+				appliances.append(appName)
+			if not found and arg != '%':
 				raise CommandError(self, 'unknown appliance "%s"' % arg)
-			for name, in self.db.fetchall():
-				list.append(name)
-		return list
+
+		return appliances
 
 
 class BoxArgumentProcessor:
@@ -146,28 +144,19 @@ class BoxArgumentProcessor:
 		arg does not match anything in the database we raise an
 		exception.  If the ARGS list is empty return all box names.
 		"""
-		list = []
+		boxes = []
 		if not args:
-			args = ['%'] # find all boxes
+			args = [ '%' ]		      # find all boxes
 
 		for arg in args:
-			rows = self.db.execute("""select name from
-				boxes where name like '%s'""" % arg)
-			if rows == 0 and arg == '%': # empty table is OK
-				continue
-			if rows < 1:
-				if arg == '%':
-					# special processing for when the table
-					# is empty
-					continue
-				else:
-					raise CommandError(self,
-						'unknown box "%s"' % arg)
+			found = False
+			for (boxName, ) in self.db.select("name from boxes where name like '%s'" % arg):
+				found = True
+				boxes.append(boxName)
+			if not found and arg != '%':
+				raise CommandError(self, 'unknown box "%s"' % arg)
 
-			for name, in self.db.fetchall():
-				list.append(name)
-
-		return list
+		return boxes
 
 	def getBoxPallets(self, box='default'):
 		"""Returns a list of pallets for a box"""
@@ -201,21 +190,22 @@ class NetworkArgumentProcessor:
 		arg does not match anything in the database we raise
 		an exception.  If the ARGS list is empty return all network names.
 		"""
-		list = []
+		networks = []
 		if not args:
-			args = ['%'] # find all networks
+			args = [ '%' ]		   # find all networks
 		for arg in args:
-			rows = self.db.execute("""select name from subnets
-				where name like '%s'""" % arg)
-			if not rows:
-				continue
-			if rows == 0 and arg == '%': # empty table is OK
-				continue
-			if rows < 1:
-				raise CommandError(self, 'unknown network "%s"' % arg)
-			for name, in self.db.fetchall():
-				list.append(name)
-		return list
+			found = False
+			for (netName, ) in self.db.select("name from subnets where name like '%s'" % arg):
+				found = True
+				networks.append(netName)
+# TODO - Release code actually doesn't do this, we should be there might
+# be code that relies on this bug. Needs testing before using the below
+# code.
+#
+#			if not found and arg != '%':
+#				raise CommandError(self, 'unknown network "%s"' % arg)
+
+		return networks
 
 	def getNetworkName(self, netid):
 		"""Returns a network (subnet) name from the database that
@@ -273,7 +263,7 @@ class SwitchArgumentProcessor:
 			""" % arg)
 
 	def getSwitchNetwork(self, switch):
-		"""Returns the network the switch is on.
+		"""Returns the network the switch's management interface is on.
 		"""
 		if not switch:
 			return ''
@@ -290,7 +280,7 @@ class SwitchArgumentProcessor:
 
 		return network
 
-	def addSwitchHost(self, switch, host, port):
+	def addSwitchHost(self, switch, host, port, interface):
 		"""
 		Add a host to switch.
 		Check if host has an interface on the same network as
@@ -310,16 +300,47 @@ class SwitchArgumentProcessor:
 
 		# Get the interface of the host that is on the same
 		# network as the switch
-		host_interface = self.db.select("""
-			id from networks where subnet='%s' and
-			node=(select id from nodes where name='%s')
-			""" % (switch_network[0][0],  host))
 
-		if not host_interface:
+		# If the user entered an interface
+		if interface:
+			host_interface = self.db.select("""
+				id from networks
+				where subnet='%s'
+				and node=(select id from nodes where name='%s')
+				and device='%s'
+				""" % (switch_network[0][0],  host, interface))
+
+			if not host_interface:
+				raise CommandError(self,
+					"Interface '%s' isn't on a network with '%s'"
+					% ( interface, switch ))
+
+		# Grab the interface, if there is one, that is on the same network
+		# as the switch
+		else:
+			host_interface = self.db.select("""
+				id from networks where subnet='%s' and
+				node=(select id from nodes where name='%s')
+				""" % (switch_network[0][0],  host))
+
+			if not host_interface:
+				raise CommandError(self,
+					"host '%s' is not on a network with switch '%s'"
+					% ( host, switch ))
+
+		# Check if the port is already managed by the switch
+		rows = self.db.select("""
+			* from switchports
+			where port='%s'
+			and switch=(select id from nodes where name='%s')
+			""" % (port, switch))
+
+		if rows:
 			raise CommandError(self,
-				"host '%s' is not on a network with switch '%s'"
-				% ( host, switch ))
+				"Switch '%s' is alredy managing a host on port '%s'"
+				% (switch, port))
 
+		# if we got here, add the host to be managed switch
 		query = """
 		insert into switchports
 		(interface, switch, port)
@@ -399,21 +420,21 @@ class CartArgumentProcessor:
 
 	def getCartNames(self, args, params):
 	
-		list = []
+		carts = []
 		if not args:
-			args = ['%'] # find all cart names
+			args = [ '%' ]		 # find all cart names
 		for arg in args:
-			rows = self.db.execute("""
-				select name from carts
-				where name like binary '%s'
-				""" % arg)
-			if rows == 0 and arg == '%': # empty table is OK
-				continue
-			if rows < 1:
+			found = False
+			for (cartName, ) in self.db.select("""
+				name from carts where
+				name like binary '%s'
+				""" % arg):
+				found = True
+				carts.append(cartName)
+			if not found and arg != '%':
 				raise CommandError(self, 'unknown cart "%s"' % arg)
-			for (name, ) in self.db.fetchall():
-				list.append(name)
-		return list
+
+		return carts
 
 	
 class RollArgumentProcessor:
@@ -444,24 +465,23 @@ class RollArgumentProcessor:
 		else:
 			arch = "%" # SQL wildcard
 	
-		list = []
+		pallets = []
 		if not args:
-			args = ['%'] # find all pallet names
+			args = [ '%' ]	       # find all pallet names
 		for arg in args:
-			rows = self.db.execute("""select distinct name,version,rel
-				from rolls where name like binary '%s' and 
+			found = False
+			for (name, ver, rel) in self.db.select("""
+				distinct name, version, rel from rolls where
+				name like binary '%s' and 
 				version like binary '%s' and 
 				rel like binary '%s' and
-				arch like binary '%s' """ % (arg, version, rel, arch))
-			if rows in [ 0, None ] and arg == '%': # empty table is OK
-				continue
-			if rows < 1:
+				arch like binary '%s' 
+				""" % (arg, version, rel, arch)):
+				found = True
+				pallets.append((name, ver, rel))
+			if not found and arg != '%':
 				raise CommandError(self, 'unknown pallet "%s"' % arg)
-			for (name, ver, rel) in self.db.fetchall():
-				list.append((name, ver, rel))
-			rel = '%'
-				
-		return list
+		return pallets
 
 
 class HostArgumentProcessor:
@@ -1163,8 +1183,9 @@ class DatabaseConnection:
 	this object (self.db).
 	"""
 
-	def __init__(self, db):
+	cache   = {}
 
+	def __init__(self, db, *, caching=True):
 		# self.database : object returned from orginal connect call
 		# self.link	: database cursor used by everyone else
 		if db:
@@ -1174,16 +1195,16 @@ class DatabaseConnection:
 			self.database = None
 			self.link     = None
 
-		# Optional envinorment variable STACKCACHE can be used
-		# to disable database caching.	Default is to cache.
+		# Setup the global cache, new DatabaseConnections will all use
+		# this cache. The envinorment variable STACKCACHE can be used
+		# to override the optional CACHING arg.
+		#
+		# Note the cache is shared but the decision to cache is not.
 		
-		caching = os.environ.get('STACKCACHE')
-		if caching:
-			caching = str2bool(caching)
+		if os.environ.get('STACKCACHE'):
+			self.caching = str2bool(os.environ.get('STACKCACHE'))
 		else:
-			caching = True
-		self.cache   = {}
-		self.caching = caching
+			self.caching = caching
 
 
 	def enableCache(self):
@@ -1194,7 +1215,8 @@ class DatabaseConnection:
 		self.clearCache()
 
 	def clearCache(self):
-		self.cache = {}
+		Debug('clearing cache of %d selects' % len(DatabaseConnection.cache))
+		DatabaseConnection.cache = {}
 
 	def select(self, command):
 		if not self.link:
@@ -1207,8 +1229,9 @@ class DatabaseConnection:
 		k = m.hexdigest()
 
 #		 print 'select', k, command
-		if k in self.cache:
-			rows = self.cache[k]
+		if k in DatabaseConnection.cache:
+			Debug('select %s' % k)
+			rows = DatabaseConnection.cache[k]
 #			 print >> sys.stderr, '-\n%s\n%s\n' % (command, rows)
 		else:
 			try:
@@ -1220,7 +1243,7 @@ class DatabaseConnection:
 				rows = []
 				
 			if self.caching:
-				self.cache[k] = rows
+				DatabaseConnection.cache[k] = rows
 
 		return rows
 
@@ -1228,7 +1251,7 @@ class DatabaseConnection:
 	def execute(self, command):
 		command = command.strip()
 
-		if command.find('select') == -1:
+		if command.find('select') != 0:
 			self.clearCache()
 						
 		if self.link:
@@ -1439,8 +1462,7 @@ class DatabaseConnection:
 	def getNodeName(self, hostname, subnet=None):
 
 		if not subnet:
-			rows = self.select("""name from nodes
-				where name like '%s'""" % hostname)
+			rows = self.select("name FROM nodes where name like '%s'" % hostname)
 			if rows:
 				(hostname, ) = rows[0]
 			return hostname
@@ -1686,13 +1708,14 @@ class Command:
 	"""
 
 	MustBeRoot = 1
-	
-	def __init__(self, database, debug=False):
+
+	def __init__(self, database, *, debug=None):
 		"""Creates a DatabaseConnection for the StackCommand to use.
 		This is called for all commands, including those that do not
 		require a database connection."""
 
-		stack.commands._debug = debug
+		if debug is not None:
+			stack.commands._debug = debug
 
 		self.db = DatabaseConnection(database)
 

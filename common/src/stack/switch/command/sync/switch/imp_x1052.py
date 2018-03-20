@@ -6,7 +6,7 @@
 
 import stack.commands
 from stack.exception import CommandError
-from stack.switch import SwitchDellX1052
+from stack.switch import SwitchDellX1052, SwitchException
 
 
 class Implementation(stack.commands.Implementation):
@@ -30,4 +30,12 @@ class Implementation(stack.commands.Implementation):
 		# Connect to the switch
 		with SwitchDellX1052(switch_address, switch_name, switch_username, switch_password) as _switch:
 			_switch.set_tftp_ip(frontend_tftp_address)
-			_switch.configure(persistent=self.owner.persistent)
+			try:
+				_switch.connect()
+				_switch.upload()
+				if self.owner.persistent:
+					_switch.apply_configuration()
+			except SwitchException as switch_error:
+				raise CommandError(self, switch_error)
+			except Exception as found_error:
+				raise CommandError(self, "There was an error syncing the switch")
