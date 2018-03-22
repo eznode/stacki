@@ -3,8 +3,6 @@
 -foundation-fbtftpd
 -foundation-gd
 -foundation-newt
--foundation-py-pycairo
--foundation-py-wxPython
 -foundation-redis
 -foundation-sc-im
 -stack-admin
