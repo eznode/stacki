@@ -13,13 +13,12 @@ import subprocess
 
 class Implementation(stack.commands.Implementation):
 
-	#@warningLicenseCheck
 	def run(self, args):
 		# Command to run
 		cmd = self.owner.cmd
 
 		# Hosts to run the commands on
-		hosts = self.owner.hosts
+		hosts = self.owner.run_hosts
 
 		# Dictionary to store output
 		host_output = {}
@@ -51,10 +50,11 @@ class Implementation(stack.commands.Implementation):
 		while work:
 			# Run the first batch of threads
 			while running_threads < numthreads and i < len(hosts):
-				host = hosts[i]
+				host = hosts[i]['host']
+				hostname = hosts[i]['name']
 
 				host_output[host] = {'output': None, 'retval': -1}
-				p = Parallel(cmd, host, host_output[host], timeout)
+				p = Parallel(cmd, hostname, host_output[host], timeout)
 				p.setDaemon(True)
 				p.start()
 				threads.append(p)	

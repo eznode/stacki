@@ -76,6 +76,40 @@ class Command(stack.commands.Command,
 	</example>
 	"""
 
+	def populate_run_hosts(self):
+		for host in self.hosts:
+			self.run_hosts.append({'host':host, 'name':host})
+		return
+		self.mgmt_networks = {}
+		self.attrs = self.call('list.host.attr',self.hosts)
+		f = lambda x: x['attr'] == 'stack.network'
+		network_attrs = list(filter(f, self.attrs))
+
+		self.mgmt_networks = {}
+		for host in self.hosts:
+			g = lambda x: x['host'] == host
+			s = list(filter(g, network_attrs))
+			if len(s):
+				network = s[0]['value']
+				if network not in self.mgmt_networks:
+					self.mgmt_networks[network] = []
+				self.mgmt_networks[network].append(host)
+
+		a = []
+		b = []
+		for net in self.mgmt_networks:
+			h = self.mgmt_networks[net]
+			a.extend(h)
+			b.extend(self.getHostnames(h, subnet=net))
+
+		for host in self.hosts:
+			if host in a:
+				idx = a.index(host)
+				self.run_hosts.append({'host':host, 'name':b[idx]})
+			else:
+				self.run_hosts.append({'host':host, 'name':host})
+
+
 	def run(self, params, args):
 
 		# Parse Params
@@ -92,6 +126,8 @@ class Command(stack.commands.Command,
 
 		# Get list of hosts to run the command on
 		self.hosts = self.getHostnames(args, self.str2bool(managed))
+		self.run_hosts = []
+		self.populate_run_hosts()
 
 		# Get timeout for commands
 		try:
