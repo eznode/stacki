@@ -11,7 +11,7 @@ def test_apache_enabled_and_running(host):
 	assert apache.is_running
 
 def test_mariadb_enabled_and_running(host):
-	mariadb = host.service('mariadb')
+	mariadb = host.service('mysql')
 	assert mariadb.is_enabled
 	assert mariadb.is_running
 
@@ -25,11 +25,6 @@ def test_tftpd_enabled_and_running(host):
 	if not xinetd.is_running and not fbtftpd.is_running:
 		err = print("No tftp server is running.")
 		assert err
-
-def test_ludicrous_server_enabled_and_running(host):
-	ludicrous = host.service('ludicrous-server')
-	assert ludicrous.is_enabled
-	assert ludicrous.is_running
 
 def test_dhcp_enabled_and_running(host):
 	dhcp = host.service('dhcpd')
