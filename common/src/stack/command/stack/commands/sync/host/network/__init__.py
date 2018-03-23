@@ -58,7 +58,10 @@ class Command(stack.commands.sync.host.command):
 				stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			o, e = s.communicate(input=c.encode())
 			
-			cmd = ''
+			cmd = '( /opt/stack/bin/stack report host interface %s && ' % host
+			cmd += '/opt/stack/bin/stack report host network %s && ' % host
+			cmd += '/opt/stack/bin/stack report host route %s ) | ' % host
+			cmd += '/opt/stack/bin/stack report script | '
 			if host != me:
 				cmd += 'ssh -T -x %s ' % hostname
 			cmd += 'bash > /dev/null 2>&1'

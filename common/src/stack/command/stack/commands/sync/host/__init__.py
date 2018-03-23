@@ -84,8 +84,10 @@ class Parallel(threading.Thread):
 			(o, e) = p.communicate(self.stdin.encode())
 		
 		rc = p.wait()
-		self.out['output'] = o
-		self.out['error'] = e
+		if o:
+			self.out['output'] = o.decode()
+		if e:
+			self.out['error'] = e.decode()
 		self.out['rc'] = rc
 
 
