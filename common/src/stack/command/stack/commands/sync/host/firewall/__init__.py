@@ -13,10 +13,9 @@
 import stack.commands
 from stack.commands.sync.host import Parallel
 from stack.commands.sync.host import timeout
-import stack.commands.run.host
 
 
-class Command(stack.commands.run.host.command):
+class Command(stack.commands.sync.host.command):
 	"""
 	Reconfigure and optionally restart firewall for named hosts.
 
