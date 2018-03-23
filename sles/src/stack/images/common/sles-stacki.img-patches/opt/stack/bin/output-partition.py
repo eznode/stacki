@@ -110,7 +110,7 @@ def outputPartition(p, initialize):
 			xml_partitions.append('\t\t\t\t<size>%dM</size>' %  p['size'])
 
 	if p['fstype']:
-		if initialize.lower() == 'true':
+		if format.lower() == 'true':
 			xml_partitions.append('\t\t\t\t<filesystem config:type="symbol">%s</filesystem>' % p['fstype'])
 		xml_partitions.append('\t\t\t\t<format config:type="boolean">%s</format>' % format)
 
@@ -140,12 +140,15 @@ def outputPartition(p, initialize):
 	if create == 'true' and partition_id:
 		xml_partitions.append('\t\t\t\t<partition_id config:type="integer">%s</partition_id>' % partition_id)
 
-
 	if label:
-		xml_partitions.append('\t\t\t\t<label>%s</label>' % label)
-
-		if mnt:
+		if mnt and (create != 'true' and format.lower() == 'false'):
 			xml_partitions.append('\t\t\t\t<mountby config:type="symbol">label</mountby>')
+		if create == 'true':
+			xml_partitions.append('\t\t\t\t<label>%s</label>' % label)
+		else:
+			xml_partitions.append('\t\t\t\t<partition_nr config:type="integer">%s</partition_nr>' % p['partnumber'])
+			xml_partitions.append('\t\t\t\t<create config:type="boolean">%s</create>' % create)
+
 	else:
 		if mnt:
 			xml_partitions.append('\t\t\t\t<mountby config:type="symbol">uuid</mountby>')
@@ -220,12 +223,7 @@ def outputDisk(disk, initialize):
 	# only output XML configuration for this disk if there is partitioning
 	# configuration for this disk
 	#
-	if import_fstab:
-		if disk.lower() not in single_root_drive:
-			# We will handle the data disks mount points post install.
-			# Autoyast doesn't handle this correctly
-			return
-	if xml_partitions and initialize.lower() == 'true':
+	if xml_partitions:
 		if 'disklabel' in attributes:
 			disklabel = attributes['disklabel']
 		else:
@@ -241,18 +239,6 @@ def outputDisk(disk, initialize):
 		print('\t\t</partitions>')
 
 		print('\t</drive>')
-	elif xml_partitions and initialize.lower() == 'false':
-		if 'disklabel' in attributes:
-			disklabel = attributes['disklabel']
-		else:
-			disklabel = 'gpt'
-		print('\t<fstab>')
-		print('\t\t<use_existing_fstab config:type="boolean">true</use_existing_fstab>')
-		print('\t\t<partitions config:type="list">')
-		for p in xml_partitions:
-			print('%s' % p)
-		print('\t\t</partitions>')
-		print('\t</fstab>')
 
 	return
 
@@ -548,51 +534,25 @@ elif 'nukedisks' in attributes:
 else:
 	nukedisks = 'false'
 
+if nukedisks.lower() == 'false':
+	# TODO: Need to output the existing fstab to be utilized post install.
+	if not os.path.exists('/tmp/fstab_info'):
+		os.makedirs('/tmp/fstab_info')
+	with open('/tmp/fstab_info/__init__.py', 'w') as fstab_info:
+		fstab_info.write('old_fstab = %s\n\n' % host_fstab)
+
+
 # Check how many disks we are partitioning
 device_set = set()
 for each in csv_partitions:
         device_set.add(each['device'])
 
-
-
 # Giving up hope on AutoYast not-initializing data disks.
 # (https://jira.td.teradata.com/jira/browse/OSEDEV-2132)
 # We need to only touch the disk with "/", "/boot" (if present) and "/var"
-# These partitions can only be on one disk, so checking for that below:
-
-import_fstab = False
-if nukedisks.lower() == "false" and len(device_set) > 1: 
-	single_root_drive = set()
-	for each_partition in csv_partitions:
-		if each_partition['mountpoint'] in [ '/', '/var', '/boot', '/boot/efi' ]:
-			single_root_drive.add(each_partition['device'])
-	if len(single_root_drive) == 1:
-		import_fstab = True
-	# print(" : %s\n" % )
-	# for each_attribute in attributes:
-	# 	print("%s : %s" % (each_attribute, attributes[each_attribute]))
-	# print("\nnukedisks: %s\n" % nukedisks)
-	# print("device_set : %s\n" % device_set)
-	# print("host_disks : %s\n" % host_disks)
-	# for each_host_fstab in host_fstab:
-	# 	print("host_fstab : %s\n" % each_host_fstab)
-	# for each_host_partitions in host_partitions:
-	# 	print("host_partitions : %s" % each_host_partitions)
-	# print("csv_partitions : %s\n" % csv_partitions)
-	# print("parts : %s\n" % parts)
-
-# Need to output the remaining fstab to be utilized post install. 
-# Giving it some thought if I should use the raw text, or what was previously parsed above. 
-# Not really sure yet, will first check that the above single drive attempt works beforehand.
 
 
-# The disklabel and device_set check allow us to successfully use 
-# nukedisks=false on gpt with multiple disks
-if nukedisks.lower() == 'true':
-	print('<partitioning xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns" config:type="list">')
-else:
-	print('<partitioning_advanced xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns">')
-
+print('<partitioning xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns" config:type="list">')
 
 #
 # process all nuked disks first
@@ -614,10 +574,5 @@ for disk in host_disks:
 		outputDisk(disk, initialize)	
 
 
-# The disklabel and device_set check allow us to successfully use 
-# nukedisks=false on gpt with multiple disks
-if nukedisks.lower() == 'true':
-	print('</partitioning>')
-else:
-	print('</partitioning_advanced>')
+print('</partitioning>')
 print('')
