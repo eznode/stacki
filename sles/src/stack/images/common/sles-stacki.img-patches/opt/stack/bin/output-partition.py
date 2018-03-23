@@ -535,7 +535,7 @@ else:
 	nukedisks = 'false'
 
 if nukedisks.lower() == 'false':
-	# TODO: Need to output the existing fstab to be utilized post install.
+	# Need output of the existing fstab to be utilized for post-install script.
 	if not os.path.exists('/tmp/fstab_info'):
 		os.makedirs('/tmp/fstab_info')
 	with open('/tmp/fstab_info/__init__.py', 'w') as fstab_info:
@@ -545,7 +545,7 @@ if nukedisks.lower() == 'false':
 # Check how many disks we are partitioning
 device_set = set()
 for each in csv_partitions:
-        device_set.add(each['device'])
+	device_set.add(each['device'])
 
 # Giving up hope on AutoYast not-initializing data disks.
 # (https://jira.td.teradata.com/jira/browse/OSEDEV-2132)
