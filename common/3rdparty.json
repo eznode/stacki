@@ -2,7 +2,6 @@
 	{
 		"urlbase": "https://teradata-stacki.s3.amazonaws.com/3rdparty",
 		"files": [
-			"gd-2.0.33.tar.gz", 
 		        "MegaCli-8.07.07-1.noarch.rpm", 
 		        "newt-0.52.20.tar.gz", 
 		        "Python-3.6.1.tgz", 
